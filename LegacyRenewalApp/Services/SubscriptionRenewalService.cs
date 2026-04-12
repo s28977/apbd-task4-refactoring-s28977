@@ -12,6 +12,7 @@ namespace LegacyRenewalApp
             bool includePremiumSupport,
             bool useLoyaltyPoints)
         {
+            //Validate 
             if (customerId <= 0)
             {
                 throw new ArgumentException("Customer id must be positive");
@@ -32,24 +33,31 @@ namespace LegacyRenewalApp
                 throw new ArgumentException("Payment method is required");
             }
 
+            //Normalize
             string normalizedPlanCode = planCode.Trim().ToUpperInvariant();
             string normalizedPaymentMethod = paymentMethod.Trim().ToUpperInvariant();
-
+            
+            //Inject dependencies
             var customerRepository = new CustomerRepository();
             var planRepository = new SubscriptionPlanRepository();
-
+            
+            //Communicate with database
             var customer = customerRepository.GetById(customerId);
             var plan = planRepository.GetByCode(normalizedPlanCode);
-
+            
+            // Validate
             if (!customer.IsActive)
             {
                 throw new InvalidOperationException("Inactive customers cannot renew subscriptions");
             }
 
+            // Calculate base amount
             decimal baseAmount = (plan.MonthlyPricePerSeat * seatCount * 12m) + plan.SetupFee;
             decimal discountAmount = 0m;
             string notes = string.Empty;
 
+            
+            //Calculate discount
             if (customer.Segment == "Silver")
             {
                 discountAmount += baseAmount * 0.05m;
@@ -104,14 +112,16 @@ namespace LegacyRenewalApp
                 discountAmount += pointsToUse;
                 notes += $"loyalty points used: {pointsToUse}; ";
             }
-
+            
+            //Calculate subtotal
             decimal subtotalAfterDiscount = baseAmount - discountAmount;
             if (subtotalAfterDiscount < 300m)
             {
                 subtotalAfterDiscount = 300m;
                 notes += "minimum discounted subtotal applied; ";
             }
-
+            
+            // Calculate support fee
             decimal supportFee = 0m;
             if (includePremiumSupport)
             {
@@ -130,7 +140,8 @@ namespace LegacyRenewalApp
 
                 notes += "premium support included; ";
             }
-
+            
+            // Calculate payment fee
             decimal paymentFee = 0m;
             if (normalizedPaymentMethod == "CARD")
             {
@@ -156,7 +167,8 @@ namespace LegacyRenewalApp
             {
                 throw new ArgumentException("Unsupported payment method");
             }
-
+            
+            // Select taxRate
             decimal taxRate = 0.20m;
             if (customer.Country == "Poland")
             {
@@ -174,9 +186,11 @@ namespace LegacyRenewalApp
             {
                 taxRate = 0.25m;
             }
-
+            
+            //Calculate tax
             decimal taxBase = subtotalAfterDiscount + supportFee + paymentFee;
             decimal taxAmount = taxBase * taxRate;
+            //Calculate finalAmount
             decimal finalAmount = taxBase + taxAmount;
 
             if (finalAmount < 500m)
@@ -185,6 +199,7 @@ namespace LegacyRenewalApp
                 notes += "minimum invoice amount applied; ";
             }
 
+            // Generate Invoice
             var invoice = new RenewalInvoice
             {
                 InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMdd}-{customerId}-{normalizedPlanCode}",
@@ -201,11 +216,14 @@ namespace LegacyRenewalApp
                 Notes = notes.Trim(),
                 GeneratedAt = DateTime.UtcNow
             };
-
+            
+            //Save invoice
             LegacyBillingGateway.SaveInvoice(invoice);
-
+            
+            //Validate email
             if (!string.IsNullOrWhiteSpace(customer.Email))
             {
+                //Send email
                 string subject = "Subscription renewal invoice";
                 string body =
                     $"Hello {customer.FullName}, your renewal for plan {normalizedPlanCode} " +
