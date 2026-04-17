@@ -42,7 +42,6 @@ namespace LegacyRenewalApp
             bool includePremiumSupport,
             bool useLoyaltyPoints)
         {
-            //Validate 
             if (customerId <= 0)
             {
                 throw new ArgumentException("Customer id must be positive");
@@ -63,15 +62,12 @@ namespace LegacyRenewalApp
                 throw new ArgumentException("Payment method is required");
             }
 
-            //Normalize
             string normalizedPlanCode = planCode.Trim().ToUpperInvariant();
             string normalizedPaymentMethod = paymentMethod.Trim().ToUpperInvariant();
             
-            //Communicate with database
             var customer = _customerRepository.GetById(customerId);
             var plan = _planRepository.GetByCode(normalizedPlanCode);
             
-            // Validate
             if (!customer.IsActive)
             {
                 throw new InvalidOperationException("Inactive customers cannot renew subscriptions");
@@ -107,13 +103,10 @@ namespace LegacyRenewalApp
                 GeneratedAt = DateTime.UtcNow
             };
             
-            //Save invoice
             _invoiceSaver.SaveInvoice(invoice);
             
-            //Validate email
             if (!string.IsNullOrWhiteSpace(customer.Email))
             {
-                //Send email
                 string subject = "Subscription renewal invoice";
                 string body =
                     $"Hello {customer.FullName}, your renewal for plan {normalizedPlanCode} " +
