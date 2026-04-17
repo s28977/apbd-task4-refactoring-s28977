@@ -10,6 +10,8 @@ public class PaymentCalculator
         return (plan.MonthlyPricePerSeat * seatCount * 12m) + plan.SetupFee;
     }
 
+    
+    //TODO: Maybe change if blocks into polymorphic call
     public decimal CalculateDiscount(decimal baseAmount, SubscriptionPlan plan, Customer customer, int seatCount,
         bool useLoyaltyPoints)
     {
